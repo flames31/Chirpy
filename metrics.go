@@ -22,9 +22,3 @@ func (cfg *apiConfig) handleMetrics(w http.ResponseWriter, req *http.Request) {
   </body>
 </html>`, cfg.fileServerHits.Load())))
 }
-
-func (cfg *apiConfig) handlerMetricsReset(w http.ResponseWriter, req *http.Request) {
-	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-	w.WriteHeader(http.StatusOK)
-	cfg.fileServerHits.Store(0)
-}

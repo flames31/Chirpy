@@ -16,10 +16,6 @@ func handlerValidateChirp(w http.ResponseWriter, req *http.Request) {
 		Cleaned_body string `json:"cleaned_body"`
 	}
 
-	type errorJSON struct {
-		Error string `json:"error"`
-	}
-
 	incomingJSON := incoming{}
 	if err := json.NewDecoder(req.Body).Decode(&incomingJSON); err != nil {
 		log.Printf("Error decoding json: %s", err)
@@ -53,12 +49,4 @@ func getCleanBody(str string) string {
 	}
 
 	return strings.Join(strSlice, " ")
-}
-
-func writeJSON(w http.ResponseWriter, status int, v any) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(status)
-	if err := json.NewEncoder(w).Encode(v); err != nil {
-		log.Printf("Error encoding JSON response: %v", err)
-	}
 }

@@ -25,3 +25,5 @@ go.work.sum
 .env
 
 out
+
+db_connection.txt
