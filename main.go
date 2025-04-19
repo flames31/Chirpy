@@ -15,6 +15,7 @@ import (
 type apiConfig struct {
 	db             *database.Queries
 	fileServerHits atomic.Int32
+	jwtToken       string
 }
 
 func main() {
@@ -33,6 +34,7 @@ func main() {
 	cfg := apiConfig{
 		fileServerHits: atomic.Int32{},
 		db:             dbQueries,
+		jwtToken:       os.Getenv("JWT_TOKEN"),
 	}
 	mux.Handle("/app/", cfg.middlewareMetricsInc(http.StripPrefix("/app", http.FileServer(http.Dir(filePathRoot)))))
 	mux.HandleFunc("GET /api/healthz", handlerReadiness)

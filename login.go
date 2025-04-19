@@ -12,8 +12,9 @@ import (
 
 func (cfg *apiConfig) handleLogin(w http.ResponseWriter, req *http.Request) {
 	type incoming struct {
-		Email    string `json:"email"`
-		Password string `json:"password"`
+		Email     string `json:"email"`
+		Password  string `json:"password"`
+		ExpiresIn int    `json:"expires_in_seconds"`
 	}
 
 	type respJSON struct {
@@ -21,6 +22,7 @@ func (cfg *apiConfig) handleLogin(w http.ResponseWriter, req *http.Request) {
 		CreatedAt time.Time `json:"created_at"`
 		UpdatedAt time.Time `json:"updated_at"`
 		Email     string    `json:"email"`
+		Token     string    `json:"token"`
 	}
 
 	incomingJSON := incoming{}
@@ -30,6 +32,12 @@ func (cfg *apiConfig) handleLogin(w http.ResponseWriter, req *http.Request) {
 			Error: "Something went wrong",
 		})
 		return
+	}
+
+	expiresIn := time.Duration(incomingJSON.ExpiresIn) * time.Second
+
+	if expiresIn == 0 || expiresIn > time.Hour {
+		expiresIn = time.Hour
 	}
 
 	user, err := cfg.db.GetUserByEmail(req.Context(), incomingJSON.Email)
@@ -49,10 +57,20 @@ func (cfg *apiConfig) handleLogin(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
+	token, err := auth.MakeJWT(user.ID, cfg.jwtToken, expiresIn)
+	if err != nil {
+		log.Printf("Error while creating token: %s", err)
+		writeJSON(w, http.StatusInternalServerError, errorJSON{
+			Error: "Something went wrong",
+		})
+		return
+	}
+
 	writeJSON(w, http.StatusOK, respJSON{
 		ID:        user.ID,
 		CreatedAt: user.CreatedAt,
 		UpdatedAt: user.UpdatedAt,
 		Email:     user.Email,
+		Token:     token,
 	})
 }

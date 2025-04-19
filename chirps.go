@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/flames31/Chirpy/internal/auth"
 	"github.com/flames31/Chirpy/internal/database"
 	"github.com/google/uuid"
 )
@@ -33,6 +34,24 @@ func (cfg *apiConfig) handleCreateChirp(w http.ResponseWriter, req *http.Request
 		})
 		return
 	}
+
+	token, err := auth.GetBearerToken(req.Header)
+	if err != nil {
+		log.Printf("Error validating token: %s", err)
+		writeJSON(w, http.StatusInternalServerError, errorJSON{
+			Error: "Something went wrong",
+		})
+		return
+	}
+
+	userID, err := auth.ValidateJWT(token, cfg.jwtToken)
+	if err != nil {
+		writeJSON(w, http.StatusUnauthorized, errorJSON{
+			Error: "User not authorized",
+		})
+		return
+	}
+
 	cleanBody, ok := validateChirp(incomingJSON.Body)
 	if !ok {
 		writeJSON(w, http.StatusBadRequest, errorJSON{
@@ -43,7 +62,7 @@ func (cfg *apiConfig) handleCreateChirp(w http.ResponseWriter, req *http.Request
 
 	chirp, err := cfg.db.CreateChirp(req.Context(), database.CreateChirpParams{
 		Body:   cleanBody,
-		UserID: incomingJSON.UserID,
+		UserID: userID,
 	})
 	if err != nil {
 		log.Printf("Error creating chirp: %s", err)
