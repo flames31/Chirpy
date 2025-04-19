@@ -11,18 +11,20 @@ import (
 	"github.com/google/uuid"
 )
 
+type chirpJSON struct {
+	ID        uuid.UUID `json:"id"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+	Body      string    `json:"body"`
+	UserID    uuid.UUID `json:"user_id"`
+}
+
 func (cfg *apiConfig) handleCreateChirp(w http.ResponseWriter, req *http.Request) {
 	type incoming struct {
 		Body   string    `json:"body"`
 		UserID uuid.UUID `json:"user_id"`
 	}
-	type respJSON struct {
-		ID        uuid.UUID `json:"id"`
-		CreatedAt time.Time `json:"created_at"`
-		UpdatedAt time.Time `json:"updated_at"`
-		Body      string    `json:"body"`
-		UserID    uuid.UUID `json:"user_id"`
-	}
+
 	incomingJSON := incoming{}
 	if err := json.NewDecoder(req.Body).Decode(&incomingJSON); err != nil {
 		log.Printf("Error decoding json: %s", err)
@@ -51,13 +53,26 @@ func (cfg *apiConfig) handleCreateChirp(w http.ResponseWriter, req *http.Request
 		return
 	}
 
-	writeJSON(w, http.StatusCreated, respJSON{
+	writeJSON(w, http.StatusCreated, chirpJSON{
 		ID:        chirp.ID,
 		CreatedAt: chirp.CreatedAt,
 		UpdatedAt: chirp.UpdatedAt,
 		Body:      chirp.Body,
 		UserID:    chirp.UserID,
 	})
+}
+
+func (cfg *apiConfig) handleGetAllChirps(w http.ResponseWriter, req *http.Request) {
+	chirps, err := cfg.db.GetAllChirps(req.Context())
+	if err != nil {
+		log.Printf("Error fetching all chirps: %s", err)
+		writeJSON(w, http.StatusInternalServerError, errorJSON{
+			Error: "Something went wrong",
+		})
+		return
+	}
+
+	writeJSON(w, http.StatusOK, chirps)
 }
 
 func validateChirp(body string) (string, bool) {
