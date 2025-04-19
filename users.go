@@ -7,12 +7,15 @@ import (
 	"os"
 	"time"
 
+	"github.com/flames31/Chirpy/internal/auth"
+	"github.com/flames31/Chirpy/internal/database"
 	"github.com/google/uuid"
 )
 
 func (cfg *apiConfig) handlerCreateUser(w http.ResponseWriter, req *http.Request) {
 	type incoming struct {
-		Email string `json:"email"`
+		Email    string `json:"email"`
+		Password string `json:"password"`
 	}
 
 	type respJSON struct {
@@ -31,7 +34,19 @@ func (cfg *apiConfig) handlerCreateUser(w http.ResponseWriter, req *http.Request
 		return
 	}
 
-	user, err := cfg.db.CreateUser(req.Context(), incomingJSON.Email)
+	hashed_password, err := auth.HashPassword(incomingJSON.Password)
+	if err != nil {
+		log.Printf("Error hashing password: %s", err)
+		writeJSON(w, http.StatusInternalServerError, errorJSON{
+			Error: "Something went wrong",
+		})
+		return
+	}
+
+	user, err := cfg.db.CreateUser(req.Context(), database.CreateUserParams{
+		Email:          incomingJSON.Email,
+		HashedPassword: hashed_password,
+	})
 	if err != nil {
 		log.Printf("Error creating user: %s", err)
 		writeJSON(w, http.StatusInternalServerError, errorJSON{

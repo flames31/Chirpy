@@ -71,8 +71,45 @@ func (cfg *apiConfig) handleGetAllChirps(w http.ResponseWriter, req *http.Reques
 		})
 		return
 	}
+	chirpsJSON := []chirpJSON{}
 
-	writeJSON(w, http.StatusOK, chirps)
+	for _, chirp := range chirps {
+		chirpsJSON = append(chirpsJSON, chirpJSON{
+			ID:        chirp.ID,
+			CreatedAt: chirp.CreatedAt,
+			UpdatedAt: chirp.UpdatedAt,
+			Body:      chirp.Body,
+			UserID:    chirp.UserID,
+		})
+	}
+
+	writeJSON(w, http.StatusOK, chirpsJSON)
+}
+
+func (cfg *apiConfig) handleGetChirp(w http.ResponseWriter, req *http.Request) {
+	idStr := req.PathValue("chirpID")
+
+	chirpID, err := uuid.Parse(idStr)
+	if err != nil {
+		log.Printf("Error while converting to UUID!")
+		writeJSON(w, http.StatusInternalServerError, errorJSON{Error: "Something went wrong"})
+		return
+	}
+
+	chirp, err := cfg.db.GetChirpByID(req.Context(), chirpID)
+	if err != nil {
+		log.Printf("Error while retrieveing chirp / Given ChirpID does not exist!")
+		writeJSON(w, http.StatusNotFound, errorJSON{Error: "Something went wrong"})
+		return
+	}
+
+	writeJSON(w, http.StatusOK, chirpJSON{
+		ID:        chirp.ID,
+		CreatedAt: chirp.CreatedAt,
+		UpdatedAt: chirp.UpdatedAt,
+		Body:      chirp.Body,
+		UserID:    chirp.UserID,
+	})
 }
 
 func validateChirp(body string) (string, bool) {
