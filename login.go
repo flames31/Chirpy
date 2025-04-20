@@ -7,22 +7,23 @@ import (
 	"time"
 
 	"github.com/flames31/Chirpy/internal/auth"
+	"github.com/flames31/Chirpy/internal/database"
 	"github.com/google/uuid"
 )
 
 func (cfg *apiConfig) handleLogin(w http.ResponseWriter, req *http.Request) {
 	type incoming struct {
-		Email     string `json:"email"`
-		Password  string `json:"password"`
-		ExpiresIn int    `json:"expires_in_seconds"`
+		Email    string `json:"email"`
+		Password string `json:"password"`
 	}
 
 	type respJSON struct {
-		ID        uuid.UUID `json:"id"`
-		CreatedAt time.Time `json:"created_at"`
-		UpdatedAt time.Time `json:"updated_at"`
-		Email     string    `json:"email"`
-		Token     string    `json:"token"`
+		ID           uuid.UUID `json:"id"`
+		CreatedAt    time.Time `json:"created_at"`
+		UpdatedAt    time.Time `json:"updated_at"`
+		Email        string    `json:"email"`
+		Token        string    `json:"token"`
+		RefreshToken string    `json:"refresh_token"`
 	}
 
 	incomingJSON := incoming{}
@@ -32,12 +33,6 @@ func (cfg *apiConfig) handleLogin(w http.ResponseWriter, req *http.Request) {
 			Error: "Something went wrong",
 		})
 		return
-	}
-
-	expiresIn := time.Duration(incomingJSON.ExpiresIn) * time.Second
-
-	if expiresIn == 0 || expiresIn > time.Hour {
-		expiresIn = time.Hour
 	}
 
 	user, err := cfg.db.GetUserByEmail(req.Context(), incomingJSON.Email)
@@ -57,7 +52,7 @@ func (cfg *apiConfig) handleLogin(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	token, err := auth.MakeJWT(user.ID, cfg.jwtToken, expiresIn)
+	token, err := auth.MakeJWT(user.ID, cfg.jwtToken)
 	if err != nil {
 		log.Printf("Error while creating token: %s", err)
 		writeJSON(w, http.StatusInternalServerError, errorJSON{
@@ -66,11 +61,34 @@ func (cfg *apiConfig) handleLogin(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
+	refresh_token, err := auth.MakeRefreshToken()
+	if err != nil {
+		log.Printf("Error while creating refresh token: %s", err)
+		writeJSON(w, http.StatusInternalServerError, errorJSON{
+			Error: "Something went wrong",
+		})
+		return
+	}
+
+	_, err = cfg.db.CreateRefreshToken(req.Context(), database.CreateRefreshTokenParams{
+		Token:     refresh_token,
+		UserID:    user.ID,
+		ExpiresAt: time.Now().Add(time.Hour * 24 * 60),
+	})
+	if err != nil {
+		log.Printf("Error while creating refresh token record in DB: %s", err)
+		writeJSON(w, http.StatusInternalServerError, errorJSON{
+			Error: "Something went wrong",
+		})
+		return
+	}
+
 	writeJSON(w, http.StatusOK, respJSON{
-		ID:        user.ID,
-		CreatedAt: user.CreatedAt,
-		UpdatedAt: user.UpdatedAt,
-		Email:     user.Email,
-		Token:     token,
+		ID:           user.ID,
+		CreatedAt:    user.CreatedAt,
+		UpdatedAt:    user.UpdatedAt,
+		Email:        user.Email,
+		Token:        token,
+		RefreshToken: refresh_token,
 	})
 }

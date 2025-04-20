@@ -11,15 +11,12 @@ import (
 func TestMakeJWTAndValidateJWT_ValidToken(t *testing.T) {
 	secret := "super-secret-key"
 	userID := uuid.New()
-	expiresIn := time.Minute * 15
 
-	// Create token
-	tokenString, err := MakeJWT(userID, secret, expiresIn)
+	tokenString, err := MakeJWT(userID, secret)
 	if err != nil {
 		t.Fatalf("MakeJWT returned error: %v", err)
 	}
 
-	// Validate token
 	parsedUserID, err := ValidateJWT(tokenString, secret)
 	if err != nil {
 		t.Fatalf("ValidateJWT returned error: %v", err)
@@ -35,7 +32,7 @@ func TestValidateJWT_InvalidSignature(t *testing.T) {
 	wrongSecret := "wrong-key"
 	userID := uuid.New()
 
-	tokenString, err := MakeJWT(userID, secret, time.Minute*5)
+	tokenString, err := MakeJWT(userID, secret)
 	if err != nil {
 		t.Fatalf("MakeJWT failed: %v", err)
 	}
@@ -50,7 +47,7 @@ func TestValidateJWT_ExpiredToken(t *testing.T) {
 	secret := "super-secret-key"
 	userID := uuid.New()
 
-	tokenString, err := MakeJWT(userID, secret, -1*time.Minute) // already expired
+	tokenString, err := MakeJWT(userID, secret)
 	if err != nil {
 		t.Fatalf("MakeJWT failed: %v", err)
 	}
@@ -62,7 +59,6 @@ func TestValidateJWT_ExpiredToken(t *testing.T) {
 }
 
 func TestValidateJWT_InvalidUUID(t *testing.T) {
-	// Create token with invalid UUID string
 	secret := "super-secret-key"
 	expiresIn := time.Minute * 10
 
