@@ -84,3 +84,65 @@ func (cfg *apiConfig) handleReset(w http.ResponseWriter, req *http.Request) {
 
 	writeJSON(w, http.StatusOK, struct{}{})
 }
+
+func (cfg *apiConfig) handleUpdateCredentials(w http.ResponseWriter, req *http.Request) {
+	type incoming struct {
+		Email    string `json:"email"`
+		Password string `json:"password"`
+	}
+
+	type respJSON struct {
+		Email string `json:"email"`
+	}
+
+	incomingJSON := incoming{}
+	if err := json.NewDecoder(req.Body).Decode(&incomingJSON); err != nil {
+		log.Printf("Error decoding json: %s", err)
+		writeJSON(w, http.StatusInternalServerError, errorJSON{
+			Error: "Something went wrong",
+		})
+		return
+	}
+
+	token, err := auth.GetBearerToken(req.Header)
+	if err != nil {
+		writeJSON(w, http.StatusUnauthorized, errorJSON{
+			Error: "User not authorized",
+		})
+		return
+	}
+
+	userID, err := auth.ValidateJWT(token, cfg.jwtToken)
+	if err != nil {
+		writeJSON(w, http.StatusUnauthorized, errorJSON{
+			Error: "User not authorized",
+		})
+		return
+	}
+
+	hashedPassword, err := auth.HashPassword(incomingJSON.Password)
+	if err != nil {
+		log.Printf("Error hashing password :%v", err)
+		writeJSON(w, http.StatusInternalServerError, errorJSON{
+			Error: "Something went wrong",
+		})
+		return
+	}
+
+	err = cfg.db.UpdateUserCredential(req.Context(), database.UpdateUserCredentialParams{
+		ID:             userID,
+		Email:          incomingJSON.Email,
+		HashedPassword: hashedPassword,
+	})
+	if err != nil {
+		log.Printf("Error saving to DB :%v", err)
+		writeJSON(w, http.StatusInternalServerError, errorJSON{
+			Error: "Something went wrong",
+		})
+		return
+	}
+
+	writeJSON(w, http.StatusOK, respJSON{
+		Email: incomingJSON.Email,
+	})
+}
