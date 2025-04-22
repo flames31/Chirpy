@@ -131,6 +131,59 @@ func (cfg *apiConfig) handleGetChirp(w http.ResponseWriter, req *http.Request) {
 	})
 }
 
+func (cfg *apiConfig) handleDeleteChirp(w http.ResponseWriter, req *http.Request) {
+	idStr := req.PathValue("chirpID")
+
+	chirpID, err := uuid.Parse(idStr)
+	if err != nil {
+		log.Printf("Error while converting to UUID!")
+		writeJSON(w, http.StatusInternalServerError, errorJSON{Error: "Something went wrong"})
+		return
+	}
+
+	chirp, err := cfg.db.GetChirpByID(req.Context(), chirpID)
+	if err != nil {
+		log.Printf("Error while retrieveing chirp / Given ChirpID does not exist!")
+		writeJSON(w, http.StatusNotFound, errorJSON{Error: "Something went wrong"})
+		return
+	}
+
+	token, err := auth.GetBearerToken(req.Header)
+	if err != nil {
+		log.Printf("Error validating token: %s", err)
+		writeJSON(w, http.StatusUnauthorized, errorJSON{
+			Error: "Incorrect toke / No token provided",
+		})
+		return
+	}
+
+	userID, err := auth.ValidateJWT(token, cfg.jwtToken)
+	if err != nil {
+		writeJSON(w, http.StatusUnauthorized, errorJSON{
+			Error: "User not authorized",
+		})
+		return
+	}
+
+	if chirp.UserID != userID {
+		writeJSON(w, http.StatusForbidden, errorJSON{
+			Error: "Forbidden",
+		})
+		return
+	}
+
+	err = cfg.db.DeleteChirpByID(req.Context(), chirpID)
+	if err != nil {
+		log.Printf("Error deleting chirp: %s", err)
+		writeJSON(w, http.StatusInternalServerError, errorJSON{
+			Error: "Something went wrong",
+		})
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusNoContent)
+}
+
 func validateChirp(body string) (string, bool) {
 	if len(body) > 140 {
 		return "", false
