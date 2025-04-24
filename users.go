@@ -19,10 +19,11 @@ func (cfg *apiConfig) handlerCreateUser(w http.ResponseWriter, req *http.Request
 	}
 
 	type respJSON struct {
-		ID        uuid.UUID `json:"id"`
-		CreatedAt time.Time `json:"created_at"`
-		UpdatedAt time.Time `json:"updated_at"`
-		Email     string    `json:"email"`
+		ID          uuid.UUID `json:"id"`
+		CreatedAt   time.Time `json:"created_at"`
+		UpdatedAt   time.Time `json:"updated_at"`
+		Email       string    `json:"email"`
+		IsChirpyRed bool      `json:"is_chirpy_red`
 	}
 
 	incomingJSON := incoming{}
@@ -56,10 +57,11 @@ func (cfg *apiConfig) handlerCreateUser(w http.ResponseWriter, req *http.Request
 	}
 
 	writeJSON(w, http.StatusCreated, respJSON{
-		ID:        user.ID,
-		CreatedAt: user.CreatedAt,
-		UpdatedAt: user.UpdatedAt,
-		Email:     user.Email,
+		ID:          user.ID,
+		CreatedAt:   user.CreatedAt,
+		UpdatedAt:   user.UpdatedAt,
+		Email:       user.Email,
+		IsChirpyRed: user.IsChirpyRed,
 	})
 }
 
@@ -145,4 +147,59 @@ func (cfg *apiConfig) handleUpdateCredentials(w http.ResponseWriter, req *http.R
 	writeJSON(w, http.StatusOK, respJSON{
 		Email: incomingJSON.Email,
 	})
+}
+
+func (cfg *apiConfig) handlerUpdateChirpyRed(w http.ResponseWriter, req *http.Request) {
+	type incoming struct {
+		Event string `json:"event"`
+		Data  struct {
+			UserID string `json:"user_id"`
+		} `json:"data"`
+	}
+
+	apiKey, err := auth.GetAPIKey(req.Header)
+	if err != nil || apiKey != cfg.polkaAPIKey {
+		log.Printf("Incorrect / No apiKey present: %s", err)
+		writeJSON(w, http.StatusUnauthorized, errorJSON{
+			Error: "Missing/Incorrect apiKey",
+		})
+		return
+	}
+
+	incomingJSON := incoming{}
+	if err := json.NewDecoder(req.Body).Decode(&incomingJSON); err != nil {
+		log.Printf("Error decoding json: %s", err)
+		writeJSON(w, http.StatusInternalServerError, errorJSON{
+			Error: "Something went wrong",
+		})
+		return
+	}
+
+	if incomingJSON.Event != "user.upgraded" {
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+
+	userIDInUUID, err := uuid.Parse(incomingJSON.Data.UserID)
+	if err != nil {
+		log.Printf("Error parsing to UUID: %s", err)
+		writeJSON(w, http.StatusInternalServerError, errorJSON{
+			Error: "Something went wrong",
+		})
+		return
+	}
+
+	err = cfg.db.UpdateChirpyRed(req.Context(), database.UpdateChirpyRedParams{
+		ID:          userIDInUUID,
+		IsChirpyRed: true,
+	})
+	if err != nil {
+		log.Printf("User not found: %s", err)
+		writeJSON(w, http.StatusNotFound, errorJSON{
+			Error: "User not present",
+		})
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
 }

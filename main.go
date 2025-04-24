@@ -16,6 +16,7 @@ type apiConfig struct {
 	db             *database.Queries
 	fileServerHits atomic.Int32
 	jwtToken       string
+	polkaAPIKey    string
 }
 
 func main() {
@@ -35,6 +36,7 @@ func main() {
 		fileServerHits: atomic.Int32{},
 		db:             dbQueries,
 		jwtToken:       os.Getenv("JWT_TOKEN"),
+		polkaAPIKey:    os.Getenv("POLKA_KEY"),
 	}
 	mux.Handle("/app/", cfg.middlewareMetricsInc(http.StripPrefix("/app", http.FileServer(http.Dir(filePathRoot)))))
 	mux.HandleFunc("GET /api/healthz", handlerReadiness)
@@ -49,6 +51,7 @@ func main() {
 	mux.HandleFunc("POST /api/revoke", cfg.handleRevoke)
 	mux.HandleFunc("PUT /api/users", cfg.handleUpdateCredentials)
 	mux.HandleFunc("DELETE /api/chirps/{chirpID}", cfg.handleDeleteChirp)
+	mux.HandleFunc("POST /api/polka/webhooks", cfg.handlerUpdateChirpyRed)
 	server := http.Server{
 		Addr:    ":" + port,
 		Handler: mux,
